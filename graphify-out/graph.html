@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>graphify - graphify-out/graph.html</title>
+<script src="https://unpkg.com/vis-network@9.1.6/standalone/umd/vis-network.min.js"
+        integrity="sha384-Ux6phic9PEHJ38YtrijhkzyJ8yQlH8i/+buBR8s3mAZOJrP1gwyvAcIYl3GWtpX1"
+        crossorigin="anonymous"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f0f1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; height: 100vh; overflow: hidden; }
+  #graph { flex: 1; }
+  #sidebar { width: 280px; background: #1a1a2e; border-left: 1px solid #2a2a4e; display: flex; flex-direction: column; overflow: hidden; }
+  #search-wrap { padding: 12px; border-bottom: 1px solid #2a2a4e; }
+  #search { width: 100%; background: #0f0f1a; border: 1px solid #3a3a5e; color: #e0e0e0; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  #search:focus { border-color: #4E79A7; }
+  #search-results { max-height: 140px; overflow-y: auto; padding: 4px 12px; border-bottom: 1px solid #2a2a4e; display: none; }
+  .search-item { padding: 4px 6px; cursor: pointer; border-radius: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-item:hover { background: #2a2a4e; }
+  #info-panel { padding: 14px; border-bottom: 1px solid #2a2a4e; min-height: 140px; }
+  #info-panel h3 { font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #info-content { font-size: 13px; color: #ccc; line-height: 1.6; }
+  #info-content .field { margin-bottom: 5px; }
+  #info-content .field b { color: #e0e0e0; }
+  #info-content .empty { color: #555; font-style: italic; }
+  .neighbor-link { display: block; padding: 2px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid #333; }
+  .neighbor-link:hover { background: #2a2a4e; }
+  #neighbors-list { max-height: 160px; overflow-y: auto; margin-top: 4px; }
+  #legend-wrap { flex: 1; overflow-y: auto; padding: 12px; }
+  #legend-wrap h3 { font-size: 13px; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; border-radius: 4px; font-size: 12px; }
+  .legend-item:hover { background: #2a2a4e; padding-left: 4px; }
+  .legend-item.dimmed { opacity: 0.35; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-count { color: #666; font-size: 11px; }
+  #stats { padding: 10px 14px; border-top: 1px solid #2a2a4e; font-size: 11px; color: #555; }
+  #legend-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 4px 0; }
+  #legend-controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #aaa; user-select: none; }
+  #legend-controls label:hover { color: #e0e0e0; }
+  .legend-cb, #select-all-cb { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; border: 1.5px solid #3a3a5e; border-radius: 3px; background: #0f0f1a; cursor: pointer; position: relative; flex-shrink: 0; }
+  .legend-cb:checked, #select-all-cb:checked { background: #4E79A7; border-color: #4E79A7; }
+  .legend-cb:checked::after, #select-all-cb:checked::after { content: ''; position: absolute; left: 3.5px; top: 1px; width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  #select-all-cb:indeterminate { background: #4E79A7; border-color: #4E79A7; }
+  #select-all-cb:indeterminate::after { content: ''; position: absolute; left: 2px; top: 5px; width: 8px; height: 2px; background: #fff; border: none; transform: none; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div id="sidebar">
+  <div id="search-wrap">
+    <input id="search" type="text" placeholder="Search nodes..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+  <div id="info-panel">
+    <h3>Node Info</h3>
+    <div id="info-content"><span class="empty">Click a node to inspect it</span></div>
+  </div>
+  <div id="legend-wrap">
+    <h3>Communities</h3>
+    <div id="legend-controls">
+      <label><input type="checkbox" id="select-all-cb" checked onchange="toggleAllCommunities(!this.checked)">Select All</label>
+    </div>
+    <div id="legend"></div>
+  </div>
+  <div id="stats">33 nodes &middot; 66 edges &middot; 4 communities</div>
+</div>
+<script>
+const RAW_NODES = [{"id": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "label": "Hoseo University 2025 Rolling Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2025 Rolling Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "document", "degree": 6}, {"id": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "label": "Hoseo University 2023 Rolling Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 33.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2023 Rolling Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "document", "degree": 7}, {"id": "2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "label": "Hoseo University 2022 Rolling Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 26.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2022 Rolling Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "document", "degree": 5}, {"id": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "label": "Hoseo University 2025 Regular Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2025 Regular Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "document", "degree": 6}, {"id": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "label": "Hoseo University 2023 Regular Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2023 Regular Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "document", "degree": 6}, {"id": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "label": "Hoseo University 2023 Graduate Employment Status", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2023 Graduate Employment Status", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/2023\ucde8\uc5c5\ud604\ud669.md", "file_type": "document", "degree": 6}, {"id": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "label": "Hoseo University 2024 Graduate Employment Status", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 33.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2024 Graduate Employment Status", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/2024\ucde8\uc5c5\ud604\ud669.md", "file_type": "document", "degree": 7}, {"id": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "label": "Hoseo University 2025 Graduate Employment Status", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University 2025 Graduate Employment Status", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/2025\ucde8\uc5c5\ud604\ud669.md", "file_type": "document", "degree": 6}, {"id": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "label": "Hoseo University Employment Rate Summary", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University Employment Rate Summary", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/\ucde8\uc5c5\ub960.md", "file_type": "document", "degree": 6}, {"id": "korea_education_employment_indicators_korea_education_employment_indicators", "label": "Korea Education and Employment Indicators", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 40.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Korea Education and Employment Indicators", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "document", "degree": 9}, {"id": "korea_economic_indicators_korea_economic_indicators", "label": "Korea Economic Indicators", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 30.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Korea Economic Indicators", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "document", "degree": 6}, {"id": "hoseo_university", "label": "Hoseo University", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 40.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Hoseo University", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "rationale", "degree": 9}, {"id": "rolling_admission_results", "label": "Rolling Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 20.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Rolling Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "rationale", "degree": 3}, {"id": "regular_admission_results", "label": "Regular Admission Results", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 16.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Regular Admission Results", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "rationale", "degree": 2}, {"id": "admission_competition_rate", "label": "Admission Competition Rate", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 26.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Admission Competition Rate", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "rationale", "degree": 5}, {"id": "final_registrant_grade", "label": "Final Registrant Grade Cutoff", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 26.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Final Registrant Grade Cutoff", "community": 0, "community_name": "Hoseo Admissions", "source_file": "data/hoseo/job_rate/2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md", "file_type": "rationale", "degree": 5}, {"id": "graduate_employment_status", "label": "Graduate Employment Status", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 23.3, "font": {"size": 12, "color": "#ffffff"}, "title": "Graduate Employment Status", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/2025\ucde8\uc5c5\ud604\ud669.md", "file_type": "rationale", "degree": 4}, {"id": "employment_rate", "label": "Employment Rate", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 26.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Employment Rate", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/\ucde8\uc5c5\ub960.md", "file_type": "rationale", "degree": 5}, {"id": "employment_retention_rate", "label": "Employment Retention Rate", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 20.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Employment Retention Rate", "community": 3, "community_name": "Graduate Employment", "source_file": "data/hoseo/job_rate/2025\ucde8\uc5c5\ud604\ud669.md", "file_type": "rationale", "degree": 3}, {"id": "university_entrance_rate", "label": "University Entrance Rate", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.3, "font": {"size": 0, "color": "#ffffff"}, "title": "University Entrance Rate", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 1}, {"id": "graduate_employment_rate", "label": "Graduate Employment Rate", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 16.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Graduate Employment Rate", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 2}, {"id": "youth_unemployment_rate", "label": "Youth Unemployment Rate", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 20.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Youth Unemployment Rate", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 3}, {"id": "unemployment_rate", "label": "Unemployment Rate", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 20.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Unemployment Rate", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "rationale", "degree": 3}, {"id": "gdp_growth", "label": "GDP Growth", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 16.7, "font": {"size": 12, "color": "#ffffff"}, "title": "GDP Growth", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "rationale", "degree": 2}, {"id": "inflation", "label": "Inflation", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 16.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Inflation", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "rationale", "degree": 2}, {"id": "agent_simulation_reference_data", "label": "Agent Simulation Reference Data", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 20.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Agent Simulation Reference Data", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 3}, {"id": "education_employment_conditions", "label": "Education and Employment Conditions", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 16.7, "font": {"size": 12, "color": "#ffffff"}, "title": "Education and Employment Conditions", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 2}, {"id": "job_market_competition", "label": "Job Market Competition", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 20.0, "font": {"size": 12, "color": "#ffffff"}, "title": "Job Market Competition", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "rationale", "degree": 3}, {"id": "economic_anxiety", "label": "Economic Anxiety", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.3, "font": {"size": 0, "color": "#ffffff"}, "title": "Economic Anxiety", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "rationale", "degree": 1}, {"id": "world_bank", "label": "World Bank", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.3, "font": {"size": 0, "color": "#ffffff"}, "title": "World Bank", "community": 1, "community_name": "Economic Labor Context", "source_file": "data/hoseo/job_rate/korea_economic_indicators.md", "file_type": "rationale", "degree": 1}, {"id": "daehak_alimi", "label": "\ub300\ud559\uc54c\ub9ac\ubbf8", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.3, "font": {"size": 0, "color": "#ffffff"}, "title": "\ub300\ud559\uc54c\ub9ac\ubbf8", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 1}, {"id": "statistics_korea_indicator_system", "label": "\uad6d\uac00\uc9c0\ud45c\uccb4\uacc4 / \ud1b5\uacc4\uccad", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.3, "font": {"size": 0, "color": "#ffffff"}, "title": "\uad6d\uac00\uc9c0\ud45c\uccb4\uacc4 / \ud1b5\uacc4\uccad", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 1}, {"id": "kess_ministry_of_education", "label": "\uad50\uc721\ud1b5\uacc4\uc11c\ube44\uc2a4 / \uad50\uc721\ubd80", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.3, "font": {"size": 0, "color": "#ffffff"}, "title": "\uad50\uc721\ud1b5\uacc4\uc11c\ube44\uc2a4 / \uad50\uc721\ubd80", "community": 2, "community_name": "Education Indicators", "source_file": "data/hoseo/job_rate/korea_education_employment_indicators.md", "file_type": "rationale", "degree": 1}];
+const RAW_EDGES = [{"from": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "to": "rolling_admission_results", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "to": "admission_competition_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "to": "final_registrant_grade", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "to": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "to": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "label": "semantically_similar_to", "title": "semantically_similar_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "to": "rolling_admission_results", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "to": "admission_competition_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "to": "final_registrant_grade", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "to": "2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "to": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "label": "semantically_similar_to", "title": "semantically_similar_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "to": "rolling_admission_results", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "to": "admission_competition_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "to": "final_registrant_grade", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "to": "regular_admission_results", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "to": "admission_competition_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "to": "final_registrant_grade", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "to": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "to": "regular_admission_results", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "to": "admission_competition_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "to": "final_registrant_grade", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "to": "graduate_employment_status", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "to": "employment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "to": "employment_retention_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "to": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "to": "2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "to": "graduate_employment_status", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "to": "employment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "to": "employment_retention_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "to": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "to": "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "to": "hoseo_university", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "to": "graduate_employment_status", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "to": "employment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "to": "employment_retention_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "to": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "label": "shares_data_with", "title": "shares_data_with [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "to": "hoseo_university", "label": "references", "title": "references [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "to": "employment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "to": "graduate_employment_status", "label": "conceptually_related_to", "title": "conceptually_related_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "university_entrance_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "graduate_employment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "youth_unemployment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "agent_simulation_reference_data", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "education_employment_conditions", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "daehak_alimi", "label": "cites", "title": "cites [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "statistics_korea_indicator_system", "label": "cites", "title": "cites [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_education_employment_indicators_korea_education_employment_indicators", "to": "kess_ministry_of_education", "label": "cites", "title": "cites [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_economic_indicators_korea_economic_indicators", "to": "korea_education_employment_indicators_korea_education_employment_indicators", "label": "semantically_similar_to", "title": "semantically_similar_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "korea_economic_indicators_korea_economic_indicators", "to": "unemployment_rate", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_economic_indicators_korea_economic_indicators", "to": "gdp_growth", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_economic_indicators_korea_economic_indicators", "to": "inflation", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_economic_indicators_korea_economic_indicators", "to": "world_bank", "label": "cites", "title": "cites [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "korea_economic_indicators_korea_economic_indicators", "to": "agent_simulation_reference_data", "label": "references", "title": "references [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "graduate_employment_rate", "to": "employment_rate", "label": "semantically_similar_to", "title": "semantically_similar_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "youth_unemployment_rate", "to": "unemployment_rate", "label": "semantically_similar_to", "title": "semantically_similar_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "job_market_competition", "to": "youth_unemployment_rate", "label": "conceptually_related_to", "title": "conceptually_related_to [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "unemployment_rate", "to": "job_market_competition", "label": "conceptually_related_to", "title": "conceptually_related_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "gdp_growth", "to": "job_market_competition", "label": "conceptually_related_to", "title": "conceptually_related_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "inflation", "to": "economic_anxiety", "label": "conceptually_related_to", "title": "conceptually_related_to [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "education_employment_conditions", "to": "agent_simulation_reference_data", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}];
+const LEGEND = [{"cid": 0, "color": "#4E79A7", "label": "Hoseo Admissions", "count": 10}, {"cid": 1, "color": "#F28E2B", "label": "Economic Labor Context", "count": 8}, {"cid": 2, "color": "#E15759", "label": "Education Indicators", "count": 8}, {"cid": 3, "color": "#76B7B2", "label": "Graduate Employment", "count": 7}];
+
+// HTML-escape helper — prevents XSS when injecting graph data into innerHTML
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Build vis datasets
+const nodesDS = new vis.DataSet(RAW_NODES.map(n => ({
+  id: n.id, label: n.label, color: n.color, size: n.size,
+  font: n.font, title: n.title,
+  _community: n.community, _community_name: n.community_name,
+  _source_file: n.source_file, _file_type: n.file_type, _degree: n.degree,
+})));
+
+const edgesDS = new vis.DataSet(RAW_EDGES.map((e, i) => ({
+  id: i, from: e.from, to: e.to,
+  label: '',
+  title: e.title,
+  dashes: e.dashes,
+  width: e.width,
+  color: e.color,
+  arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+})));
+
+const container = document.getElementById('graph');
+const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+  physics: {
+    enabled: true,
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {
+      gravitationalConstant: -60,
+      centralGravity: 0.005,
+      springLength: 120,
+      springConstant: 0.08,
+      damping: 0.4,
+      avoidOverlap: 0.8,
+    },
+    stabilization: { iterations: 200, fit: true },
+  },
+  interaction: {
+    hover: true,
+    tooltipDelay: 100,
+    hideEdgesOnDrag: true,
+    navigationButtons: false,
+    keyboard: false,
+  },
+  nodes: { shape: 'dot', borderWidth: 1.5 },
+  edges: { smooth: { type: 'continuous', roundness: 0.2 }, selectionWidth: 3 },
+});
+
+network.once('stabilizationIterationsDone', () => {
+  network.setOptions({ physics: { enabled: false } });
+});
+
+function showInfo(nodeId) {
+  const n = nodesDS.get(nodeId);
+  if (!n) return;
+  const neighborIds = network.getConnectedNodes(nodeId);
+  const neighborItems = neighborIds.map(nid => {
+    const nb = nodesDS.get(nid);
+    const color = nb ? nb.color.background : '#555';
+    return `<span class="neighbor-link" style="border-left-color:${esc(color)}" onclick="focusNode(${JSON.stringify(nid)})">${esc(nb ? nb.label : nid)}</span>`;
+  }).join('');
+  document.getElementById('info-content').innerHTML = `
+    <div class="field"><b>${esc(n.label)}</b></div>
+    <div class="field">Type: ${esc(n._file_type || 'unknown')}</div>
+    <div class="field">Community: ${esc(n._community_name)}</div>
+    <div class="field">Source: ${esc(n._source_file || '-')}</div>
+    <div class="field">Degree: ${n._degree}</div>
+    ${neighborIds.length ? `<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (${neighborIds.length})</div><div id="neighbors-list">${neighborItems}</div>` : ''}
+  `;
+}
+
+function focusNode(nodeId) {
+  network.focus(nodeId, { scale: 1.4, animation: true });
+  network.selectNodes([nodeId]);
+  showInfo(nodeId);
+}
+
+// Track hovered node — hover detection is more reliable than click params
+let hoveredNodeId = null;
+network.on('hoverNode', params => {
+  hoveredNodeId = params.node;
+  container.style.cursor = 'pointer';
+});
+network.on('blurNode', () => {
+  hoveredNodeId = null;
+  container.style.cursor = 'default';
+});
+container.addEventListener('click', () => {
+  if (hoveredNodeId !== null) {
+    showInfo(hoveredNodeId);
+    network.selectNodes([hoveredNodeId]);
+  }
+});
+network.on('click', params => {
+  if (params.nodes.length > 0) {
+    showInfo(params.nodes[0]);
+  } else if (hoveredNodeId === null) {
+    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+  }
+});
+
+const searchInput = document.getElementById('search');
+const searchResults = document.getElementById('search-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  searchResults.innerHTML = '';
+  if (!q) { searchResults.style.display = 'none'; return; }
+  const matches = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 20);
+  if (!matches.length) { searchResults.style.display = 'none'; return; }
+  searchResults.style.display = 'block';
+  matches.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'search-item';
+    el.textContent = n.label;
+    el.style.borderLeft = `3px solid ${n.color.background}`;
+    el.style.paddingLeft = '8px';
+    el.onclick = () => {
+      network.focus(n.id, { scale: 1.5, animation: true });
+      network.selectNodes([n.id]);
+      showInfo(n.id);
+      searchResults.style.display = 'none';
+      searchInput.value = '';
+    };
+    searchResults.appendChild(el);
+  });
+});
+document.addEventListener('click', e => {
+  if (!searchResults.contains(e.target) && e.target !== searchInput)
+    searchResults.style.display = 'none';
+});
+
+const hiddenCommunities = new Set();
+
+const selectAllCb = document.getElementById('select-all-cb');
+
+function updateSelectAllState() {
+  const total = LEGEND.length;
+  const hidden = hiddenCommunities.size;
+  selectAllCb.checked = hidden === 0;
+  selectAllCb.indeterminate = hidden > 0 && hidden < total;
+}
+
+function toggleAllCommunities(hide) {
+  document.querySelectorAll('.legend-item').forEach(item => {
+    hide ? item.classList.add('dimmed') : item.classList.remove('dimmed');
+  });
+  document.querySelectorAll('.legend-cb').forEach(cb => {
+    cb.checked = !hide;
+  });
+  LEGEND.forEach(c => {
+    if (hide) hiddenCommunities.add(c.cid); else hiddenCommunities.delete(c.cid);
+  });
+  const updates = RAW_NODES.map(n => ({ id: n.id, hidden: hide }));
+  nodesDS.update(updates);
+  updateSelectAllState();
+}
+
+const legendEl = document.getElementById('legend');
+LEGEND.forEach(c => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = 'legend-cb';
+  cb.checked = true;
+  cb.addEventListener('change', (e) => {
+    e.stopPropagation();
+    if (cb.checked) {
+      hiddenCommunities.delete(c.cid);
+      item.classList.remove('dimmed');
+    } else {
+      hiddenCommunities.add(c.cid);
+      item.classList.add('dimmed');
+    }
+    const updates = RAW_NODES
+      .filter(n => n.community === c.cid)
+      .map(n => ({ id: n.id, hidden: !cb.checked }));
+    nodesDS.update(updates);
+    updateSelectAllState();
+  });
+  item.innerHTML = `<div class="legend-dot" style="background:${c.color}"></div>
+    <span class="legend-label">${c.label}</span>
+    <span class="legend-count">${c.count}</span>`;
+  item.prepend(cb);
+  item.onclick = (e) => {
+    if (e.target === cb) return;
+    cb.checked = !cb.checked;
+    cb.dispatchEvent(new Event('change'));
+  };
+  legendEl.appendChild(item);
+});
+</script>
+<script>
+// Render hyperedges as shaded regions
+const hyperedges = [{"id": "hoseo_admission_results_time_series", "label": "Hoseo Admission Results Time Series", "nodes": ["2022\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2022_rolling_admission_results", "2023\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_rolling_admission_results", "2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_rolling_admission_results", "2023\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2023_regular_admission_results", "2025\uc815\uc2dc\uc785\uc2dc\uacb0\uacfc_hoseo_2025_regular_admission_results", "admission_competition_rate", "final_registrant_grade"], "relation": "participate_in", "confidence": "INFERRED", "confidence_score": 0.82, "source_file": "data/hoseo/job_rate/2025\uc218\uc2dc\uc785\uc2dc\uacb0\uacfc.md"}, {"id": "hoseo_graduate_employment_time_series", "label": "Hoseo Graduate Employment Time Series", "nodes": ["2023\ucde8\uc5c5\ud604\ud669_hoseo_2023_graduate_employment_status", "2024\ucde8\uc5c5\ud604\ud669_hoseo_2024_graduate_employment_status", "2025\ucde8\uc5c5\ud604\ud669_hoseo_2025_graduate_employment_status", "\ucde8\uc5c5\ub960_hoseo_employment_rate_summary", "employment_rate", "employment_retention_rate"], "relation": "participate_in", "confidence": "INFERRED", "confidence_score": 0.87, "source_file": "data/hoseo/job_rate/2025\ucde8\uc5c5\ud604\ud669.md"}, {"id": "simulation_labor_market_context", "label": "Simulation Labor Market Context", "nodes": ["korea_education_employment_indicators_korea_education_employment_indicators", "korea_economic_indicators_korea_economic_indicators", "agent_simulation_reference_data", "youth_unemployment_rate", "unemployment_rate", "gdp_growth", "inflation", "economic_anxiety", "job_market_competition"], "relation": "form", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "data/hoseo/job_rate/korea_economic_indicators.md"}];
+// afterDrawing passes ctx already transformed to network coordinate space.
+// Draw node positions raw — no manual pan/zoom/DPR math needed.
+network.on('afterDrawing', function(ctx) {
+    hyperedges.forEach(h => {
+        const positions = h.nodes
+            .map(nid => network.getPositions([nid])[nid])
+            .filter(p => p !== undefined);
+        if (positions.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#6366f1';
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Centroid and expanded hull in network coordinates
+        const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
+        const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
+        const expanded = positions.map(p => ({
+            x: cx + (p.x - cx) * 1.15,
+            y: cy + (p.y - cy) * 1.15
+        }));
+        ctx.moveTo(expanded[0].x, expanded[0].y);
+        expanded.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.4;
+        ctx.stroke();
+        // Label
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = '#4f46e5';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(h.label, cx, cy - 5);
+        ctx.restore();
+    });
+});
+</script>
+</body>
+</html>
