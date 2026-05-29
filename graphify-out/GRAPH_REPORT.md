@@ -27,10 +27,10 @@
 10. `Hoseo University Employment Rate Summary` - 6 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Graduate Employment Rate` --semantically_similar_to--> `Employment Rate`  [INFERRED] [semantically similar]
-  data/hoseo/job_rate/korea_education_employment_indicators.md → data/hoseo/job_rate/취업률.md
-- `Korea Economic Indicators` --semantically_similar_to--> `Korea Education and Employment Indicators`  [INFERRED] [semantically similar]
-  data/hoseo/job_rate/korea_economic_indicators.md → data/hoseo/job_rate/korea_education_employment_indicators.md
+- `Employment Rate` --semantically_similar_to--> `Graduate Employment Rate`  [INFERRED] [semantically similar]
+  data/hoseo/job_rate/취업률.md → data/hoseo/job_rate/korea_education_employment_indicators.md
+- `Korea Education and Employment Indicators` --semantically_similar_to--> `Korea Economic Indicators`  [INFERRED] [semantically similar]
+  data/hoseo/job_rate/korea_education_employment_indicators.md → data/hoseo/job_rate/korea_economic_indicators.md
 - `Hoseo University 2025 Rolling Admission Results` --semantically_similar_to--> `Hoseo University 2025 Regular Admission Results`  [INFERRED] [semantically similar]
   data/hoseo/job_rate/2025수시입시결과.md → data/hoseo/job_rate/2025정시입시결과.md
 - `Hoseo University 2023 Rolling Admission Results` --semantically_similar_to--> `Hoseo University 2023 Regular Admission Results`  [INFERRED] [semantically similar]
@@ -72,7 +72,7 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.514) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `Hoseo University 2023 Rolling Admission Results` (e.g. with `Hoseo University 2025 Rolling Admission Results` and `Hoseo University 2022 Rolling Admission Results`) actually correct?**
   _`Hoseo University 2023 Rolling Admission Results` has 3 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 3 inferred relationships involving `Hoseo University 2024 Graduate Employment Status` (e.g. with `Hoseo University Employment Rate Summary` and `Hoseo University 2025 Graduate Employment Status`) actually correct?**
+- **Are the 3 inferred relationships involving `Hoseo University 2024 Graduate Employment Status` (e.g. with `Hoseo University 2023 Graduate Employment Status` and `Hoseo University Employment Rate Summary`) actually correct?**
   _`Hoseo University 2024 Graduate Employment Status` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 2 inferred relationships involving `Hoseo University 2025 Rolling Admission Results` (e.g. with `Hoseo University 2023 Rolling Admission Results` and `Hoseo University 2025 Regular Admission Results`) actually correct?**
   _`Hoseo University 2025 Rolling Admission Results` has 2 INFERRED edges - model-reasoned connections that need verification._

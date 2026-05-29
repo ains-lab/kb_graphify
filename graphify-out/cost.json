@@ -5,6 +5,13 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "files": 11
+    },
+    {
+      "date": "2026-05-26T10:19:56.390314+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 11,
+      "note": "update: cache-only / manifest path refresh"
     }
   ],
   "total_input_tokens": 0,
